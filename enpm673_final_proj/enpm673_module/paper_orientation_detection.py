@@ -2,6 +2,7 @@
 
 """
 Find orientation of paper
+Note : Handle case if multiple pages with different orientation in frame. 
 
 Input: Preprocessed Frame/Masked frame/Frame from video (Decide what kind of frame would be useful)
 Output: 
