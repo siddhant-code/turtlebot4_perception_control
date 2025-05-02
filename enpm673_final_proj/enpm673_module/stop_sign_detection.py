@@ -39,24 +39,6 @@ class StopSignDetector:
 
         return detected, bbox
 
-    def detect_chessboard(self, frame):
-        results = self.model(frame)
-
-        detected = False
-        bbox = None
-
-        for result in results[0].boxes:
-            class_id = int(result.cls.item())
-            confidence = result.conf.item()
-            if confidence > 0.5 and self.model.names[class_id] == "chessboard":
-                x1, y1, x2, y2 = map(int, result.xyxy[0].tolist())
-                bbox = (x1, y1, x2 - x1, y2 - y1)
-                detected = True
-                cv2.rectangle(frame, (x1, y1), (x2, y2), (255, 0, 0), 2)
-                cv2.putText(frame, "Chessboard", (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
-
-        return detected, bbox
-
 class StopSignDetectorNode(Node):
     def __init__(self):
         super().__init__('stop_sign_detector_node')
@@ -73,7 +55,6 @@ class StopSignDetectorNode(Node):
         try:
             frame = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
             detected_stop_sign, bbox_stop_sign = self.detector.detect_stop_sign(frame)
-            detected_chessboard, bbox_chessboard = self.detector.detect_chessboard(frame)
             cv2.imshow("Detection Results", frame)
 
             if cv2.waitKey(1) & 0xFF == ord('q'):
