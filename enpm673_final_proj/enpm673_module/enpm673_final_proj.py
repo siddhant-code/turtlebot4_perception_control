@@ -10,13 +10,18 @@ from cv_bridge import CvBridge
 
 from sensor_msgs.msg import Image
 
-from preprocessing import *
-from paper_orientation_detection import get_orientation
+from paper_orientation_detection import Orientation
+# from stop_sign_detection import StopSignDetector
 
 
 class Perception(Node):
     def __init__(self) -> None:
         super().__init__("image_subscriber")
+
+        # create class object based for the task
+
+        # self._detect_stop = StopSignDetector()
+        self._pose_est = Orientation()
 
         self.bridge = CvBridge()
         self._process_freq = 20
@@ -40,7 +45,7 @@ class Perception(Node):
         self.cv_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding="bgr8")
 
     def _process_callback(self) -> None:
-        process_frame = get_orientation(self.cv_image)
+        process_frame = self._pose_est.get_orientation(self.cv_image)
 
         self._process_img = self.bridge.cv2_to_imgmsg(process_frame, encoding="bgr8")
         self._process_img_pub.publish(self._process_img)
@@ -54,11 +59,12 @@ def main(args=None) -> None:
     node = Perception()
     try:
         rclpy.spin(node)
-    except KeyboardInterrupt:
-        pass
-    node.destroy_node()
-    rclpy.shutdown()
-    cv2.destroyAllWindows()
+    except Exception as e:
+        node.get_logger().error(f"Spin error: {e}")
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+        cv2.destroyAllWindows()
 
 
 if __name__ == "__main__":
