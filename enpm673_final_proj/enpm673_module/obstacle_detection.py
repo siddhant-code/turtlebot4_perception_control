@@ -9,3 +9,8 @@ Output:
     bounding box : (x,y,width,height) if detected otherwise None
 
 """
+
+def detect_obstacle(image):
+    detected = False
+    bbox = None
+    return detected,bbox
