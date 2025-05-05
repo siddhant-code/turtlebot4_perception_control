@@ -24,12 +24,33 @@ from sensor_msgs.msg import Image
 class Orientation:
     def __init__(self) -> None:
         # Marker size in meters (for pose estimation)
-        self.marker_length = 0.10  # 10 cm
+        self._marker_length = 0.10  # 10 cm
+        self._found_aruco_flag = False
+
+        self._corner_list = None
+        self._center_coords = None
+        self._marker_id = None
+
+        self._heading_length = 0.05
+        self._arrow_pt1 = 0
+        self._arrow_pt2 = 0
+        self._yaw = 0
+
+        # Pose estimation
+        self._objp = np.array(
+            [
+                [-self._marker_length / 2, self._marker_length / 2, 0],
+                [self._marker_length / 2, self._marker_length / 2, 0],
+                [self._marker_length / 2, -self._marker_length / 2, 0],
+                [-self._marker_length / 2, -self._marker_length / 2, 0],
+            ],
+            dtype=np.float64,
+        )
 
         # ArUco dictionary and detector
         # self.aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_APRILTAG_36H11)
         # self.aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_1000)
-        self.aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_100)
+        self.aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
 
         self.parameters = cv2.aruco.DetectorParameters()
         self.detector = cv2.aruco.ArucoDetector(self.aruco_dict, self.parameters)
@@ -176,6 +197,75 @@ class Orientation:
                 cv2.arrowedLine(frame_bgr, pt1, pt2, (255, 255, 0), 4, tipLength=0.5)
 
         return frame_bgr
+
+    def get_results(self, gray: np.ndarray):
+        self._found_aruco_flag = False
+
+        height, width = gray.shape[:2]
+
+        # Detect markers
+        corners, ids, rejected = self.detector.detectMarkers(gray)
+
+        # Estimate pose
+        camera_matrix, dist_coeffs = self.get_dummy_camera_params(width, height)
+
+        if ids is not None and len(ids) > 0:
+            self._found_aruco_flag = True
+
+            # Compute center Y for each marker
+            marker_centers = [np.mean(corner[0], axis=0) for corner in corners]
+            center_ys = [center[1] for center in marker_centers]
+
+            # Find index of the marker with the largest Y (bottom-most)
+            bottom_index = int(np.argmax(center_ys))
+
+            # Extract the bottom marker
+            self._corner_list = corners[bottom_index][0]
+            self._marker_id = ids[bottom_index][0]
+
+            # pt1, pt2, pt3, pt4 = self._corner
+
+            # Center
+            self._center_coords = np.mean(self._corner_list, axis=0).astype(int)
+
+            success, rvec, tvec = cv2.solvePnP(
+                self._objp, self._corner_list, camera_matrix, dist_coeffs
+            )
+            if success:
+                # Get Euler angles (roll, pitch,yaw)
+                _, _, self._yaw = self.rotation_vector_to_euler_angles(rvec)
+
+                self._yaw = -1 * self._yaw
+
+                # Heading arrow
+                origin_2D, _ = cv2.projectPoints(
+                    np.array([[0, 0, 0]], dtype=np.float32),
+                    rvec,
+                    tvec,
+                    camera_matrix,
+                    dist_coeffs,
+                )
+                target_2D, _ = cv2.projectPoints(
+                    np.array([[self._heading_length, 0, 0]], dtype=np.float32),
+                    rvec,
+                    tvec,
+                    camera_matrix,
+                    dist_coeffs,
+                )
+
+                self._arrow_pt1 = tuple(origin_2D[0][0].astype(int))
+                self._arrow_pt2 = tuple(target_2D[0][0].astype(int))
+
+        # flag, ArUco-id, corner-coords, center, yaw(degree), heading arrow pts(tuple)
+
+        return (
+            self._found_aruco_flag,
+            self._marker_id,
+            self._corner_list,
+            self._center_coords,
+            self._yaw,
+            (self._arrow_pt1, self._arrow_pt2),
+        )
 
 
 class OrientationNode(Node):
