@@ -30,15 +30,19 @@ class Controller(Node):
         canvas = raw_image.copy()
         height,width,channels = canvas.shape
         gray = cv2.cvtColor(raw_image, cv2.COLOR_BGR2GRAY)
-        if not self.horizon_detected:
-            self.horizon_x,self.horizon_y,self.horizon_detected = detect_horizon(gray)
-        else:
-            self.draw_horizon_line(canvas,self.horizon_x,self.horizon_y)
-        self.get_logger().info(f"Horizon at x: {self.horizon_x} y: {self.horizon_y}")
-        
+        _,gray_thresh = cv2.threshold(gray,190,255,cv2.THRESH_BINARY)
         stop_sign_detected,stop_sign_bbox = detect_stop_sign(raw_image)
         obstacle_detected,obstacle_bbox = detect_obstacle(raw_image)
         aruco_detected,aruco_id,aruco_corner_list,aruco_center,aruco_yaw,arrows = self.aruco_orientation.get_results(gray)
+        if not self.horizon_detected:
+            self.kl = 0.0005
+            self.horizon_x,self.horizon_y,self.horizon_detected = detect_horizon(gray_thresh,attempt_by_aruco=True,corner_list = aruco_corner_list)
+        else:
+            self.kl = 0.001
+            self.draw_horizon_line(canvas,self.horizon_x,self.horizon_y)
+        self.get_logger().info(f"Horizon at x: {self.horizon_x} y: {self.horizon_y}")
+        
+        
         if stop_sign_bbox:
             self.get_logger().info("Stop sign detected!")
             canvas = self.draw_bbox(canvas,stop_sign_bbox,"Stop Sign")
@@ -57,7 +61,7 @@ class Controller(Node):
                 angular_error = width/2 - aruco_x
                 linear_error = height - aruco_y
                 angular_vel = 0.001 * angular_error
-                linear_vel = 0.001 * linear_error
+                linear_vel = self.kl * linear_error
                 if abs(angular_error) > 3:
                     self.publish_velocity(0.0,angular_vel)
                 else:
@@ -66,7 +70,10 @@ class Controller(Node):
                 self.aruco_missing_count +=1
                 if self.aruco_missing_count > 50:
                     self.get_logger().info("Looking for Aruco marker!")
-                    self.publish_velocity(0.0,aruco_yaw/abs(aruco_yaw) * 0.01)
+                    if aruco_yaw > 0:
+                        self.publish_velocity(0.0,0.09)
+                    else:
+                        self.publish_velocity(0.0,-0.09)
                         
         self.publish_image(canvas)
     

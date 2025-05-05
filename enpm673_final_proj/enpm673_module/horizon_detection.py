@@ -23,22 +23,27 @@ def detect_horizon_chessboard(gray):
     if ret:
         point1,point2 = np.array(corners[0][0],dtype=int),np.array(corners[seg - 1][0],dtype=int)
         point3,point4 = np.array(corners[-seg][0],dtype=int),np.array(corners[-1][0],dtype=int)
-        a1,b1 = np.linalg.solve(np.array([point1,point2]),np.array([1,1]))
-        a2,b2 = np.linalg.solve(np.array([point3,point4]),np.array([1,1]))
-        x,y = np.linalg.solve(np.array([[a1,b1],[a2,b2]]),np.array([1,1])).astype(int)
-        detected = True
+        x,y,detected = get_intersection(point1, point2, point3, point4)
     else:
         print("Unable to locate chessboard")
         x,y,detected = None,None,False
     return x,y,detected
 
-def detect_horizon_aruco(image):
-    return None,None,False
+def get_intersection(point1, point2, point3, point4):
+    a1,b1 = np.linalg.solve(np.array([point1,point2]),np.array([1,1]))
+    a2,b2 = np.linalg.solve(np.array([point3,point4]),np.array([1,1]))
+    x,y = np.linalg.solve(np.array([[a1,b1],[a2,b2]]),np.array([1,1])).astype(int)
+    detected = True
+    return x,y,detected
 
-def detect_horizon(image,attempt_by_aruco=False): 
+def detect_horizon_aruco(image,corner_list):
+    top_left,top_right,bottom_right,bottom_left = corner_list
+    return get_intersection(top_left, bottom_left, top_right, bottom_right)
+
+def detect_horizon(image,attempt_by_aruco=False,corner_list=None): 
     x,y,detected = detect_horizon_chessboard(image)
     if not detect_horizon_aruco and attempt_by_aruco:
-        x,y,detected = detect_horizon_aruco(image)    
+        x,y,detected = detect_horizon_aruco(image,corner_list)    
     return x,y,detected
 
    
