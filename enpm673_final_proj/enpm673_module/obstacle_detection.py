@@ -8,10 +8,13 @@ from cv_bridge import CvBridge
 import cv2
 import numpy as np
 
+def detect_obstacle(img):
+    return False, False
+
 class ObstacleDetector(Node):
     def __init__(self):
         super().__init__('obstacle_detector_node')
-
+        
         self.bridge = CvBridge()
         self.prev_gray = None
         self.motion_detected = False

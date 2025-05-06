@@ -43,6 +43,7 @@ SUBSCRIBER:
 class Controller(Node):
     def __init__(self) -> None:
         super().__init__("controller_node")
+        self.get_logger().info("controller_node has started.")
 
         # Attributes
         self._height = 720
