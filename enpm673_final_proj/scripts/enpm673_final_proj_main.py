@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import cv2
 import rclpy
+import numpy as np
 from rclpy.node import Node
 from cv_bridge import CvBridge
 from sensor_msgs.msg import Image
@@ -36,11 +37,11 @@ class Controller(Node):
         aruco_detected,aruco_id,aruco_corner_list,aruco_center,aruco_yaw,arrows = self.aruco_orientation.get_results(gray)
         if not self.horizon_detected:
             self.kl = 0.0005
-            self.horizon_x,self.horizon_y,self.horizon_detected = detect_horizon(gray_thresh,attempt_by_aruco=True,corner_list = aruco_corner_list)
+            self.horizon_vp1,self.horizon_vp2,self.horizon_detected = detect_horizon(gray_thresh,attempt_by_aruco=False,corner_list = aruco_corner_list)
         else:
-            self.kl = 0.001
-            self.draw_horizon_line(canvas,self.horizon_x,self.horizon_y)
-        self.get_logger().info(f"Horizon at x: {self.horizon_x} y: {self.horizon_y}")
+            self.kl = 0.004
+            self.draw_horizon_line(canvas,self.horizon_vp1,self.horizon_vp2)
+            self.get_logger().info(f"Horizon at detected {self.horizon_vp1} {self.horizon_vp2}")
         
         
         if stop_sign_bbox:
@@ -63,7 +64,7 @@ class Controller(Node):
                 angular_vel = 0.001 * angular_error
                 linear_vel = self.kl * linear_error
                 if abs(angular_error) > 3:
-                    self.publish_velocity(0.0,angular_vel)
+                    self.publish_velocity(0.01,angular_vel)
                 else:
                     self.publish_velocity(linear_vel,0.0)
             else:
@@ -94,8 +95,13 @@ class Controller(Node):
         cv2.putText(image, text, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
         return image
     
-    def draw_horizon_line(self,image,x,y):
-        cv2.line(image,(0,y),(2000,y),(255,0,0),1)
+    def draw_horizon_line(self,image,vp1,vp2):
+        point1 = int(vp1[0]),int(vp1[1])
+        point2 = int(vp2[0]),int(vp2[1])
+        print(point1,point2)
+        cv2.line(image,point1,point2,(255,0,0),2)
+        cv2.circle(image,point1,3,(255,0,0),3)
+        cv2.circle(image,point2,3,(255,0,0),3)
         return image
     
     def draw_point(self,image,x,y):
@@ -103,13 +109,13 @@ class Controller(Node):
         return image
 
 def main():
-    rclpy.init()
-    node = Controller()
-    try:
+        rclpy.init()
+        node = Controller()
+    #try:
         rclpy.spin(node)
-    except Exception as e:
+    #except Exception as e:
         node.get_logger().error(f"Spin error: {e}")
-    finally:
+    #finally:
         node.destroy_node()
         rclpy.shutdown()
         cv2.destroyAllWindows()
