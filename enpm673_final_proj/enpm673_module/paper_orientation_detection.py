@@ -10,14 +10,18 @@ Output:
 
 """
 
+# std modules
 import cv2
 import numpy as np
 from typing import Tuple
 
+
+# ros modules
 import rclpy
 from rclpy.node import Node
 from cv_bridge import CvBridge
 
+# msg modules
 from sensor_msgs.msg import Image
 
 
@@ -27,11 +31,14 @@ class Orientation:
         self._marker_length = 0.10  # 10 cm
         self._found_aruco_flag = False
 
-        # Camera Parameters
+        # Camera Parameters (default parameters)
         self._height = 720
         self._width = 1280
-        self._camera_matrix = None
-        self._dist_coeff = None
+        self._camera_matrix = np.array(
+            [[800, 0, self._width / 2], [0, 800, self._height / 2], [0, 0, 1]],
+            dtype=np.float32,
+        )
+        self._dist_coeff = np.zeros((5, 1), dtype=np.float32)
 
         self._corner_list = None
         self._center_coords = None
@@ -290,13 +297,17 @@ class Orientation:
     def get_results2(self, gray: np.ndarray):
         self._found_aruco_flag = False
 
-        # height, width = gray.shape[:2]
+        ### ------UNCOMMENT the following Line, if running simulation
+        # self._height, self._width = gray.shape[:2]
 
         # Detect markers
         corners, ids, rejected = self.detector.detectMarkers(gray)
 
+        ### ------UNCOMMENT the following Line, if running simulation
         # Estimate pose
-        # camera_matrix, dist_coeffs = self.get_dummy_camera_params(width, height)
+        # self._camera_matrix, self._dist_coeff = self.get_dummy_camera_params(
+        #     self._height, self._width
+        # )
 
         best_rvec = 0
         best_tvec = 0
