@@ -34,11 +34,14 @@ class Orientation:
         # Camera Parameters (default parameters)
         self._height = 720
         self._width = 1280
-        self._camera_matrix = np.array(
-            [[800, 0, self._width / 2], [0, 800, self._height / 2], [0, 0, 1]],
-            dtype=np.float32,
-        )
-        self._dist_coeff = np.zeros((5, 1), dtype=np.float32)
+        self._camera_matrix = None
+        self._dist_coeff = None
+
+        # self._camera_matrix = np.array(
+        #     [[800, 0, self._width / 2], [0, 800, self._height / 2], [0, 0, 1]],
+        #     dtype=np.float32,
+        # )
+        # self._dist_coeff = np.zeros((5, 1), dtype=np.float32)
 
         self._corner_list = None
         self._center_coords = None
@@ -237,7 +240,6 @@ class Orientation:
         camera_matrix, dist_coeffs = self.get_dummy_camera_params(width, height)
 
         if ids is not None and len(ids) > 0:
-            self._found_aruco_flag = True
 
             # Compute center Y for each marker
             marker_centers = [np.mean(corner[0], axis=0) for corner in corners]
@@ -259,6 +261,7 @@ class Orientation:
                 self._objp, self._corner_list, camera_matrix, dist_coeffs
             )
             if success:
+                self._found_aruco_flag = True
                 # Get Euler angles (roll, pitch,yaw)
                 _, _, self._yaw = self.rotation_vector_to_euler_angles(rvec)
 
@@ -297,13 +300,11 @@ class Orientation:
     def get_results2(self, gray: np.ndarray):
         self._found_aruco_flag = False
 
-        ### ------UNCOMMENT the following Line, if running simulation
         # self._height, self._width = gray.shape[:2]
 
         # Detect markers
         corners, ids, rejected = self.detector.detectMarkers(gray)
 
-        ### ------UNCOMMENT the following Line, if running simulation
         # Estimate pose
         # self._camera_matrix, self._dist_coeff = self.get_dummy_camera_params(
         #     self._height, self._width
@@ -320,8 +321,6 @@ class Orientation:
         best_yaw_abs = float("inf")
 
         if ids is not None and len(ids) > 0:
-            self._found_aruco_flag = True
-
             for i, corner in enumerate(corners):
                 corner_points = corner[0]
                 success, rvec, tvec = cv2.solvePnP(
@@ -344,6 +343,7 @@ class Orientation:
                     best_marker_id = ids[i][0]
 
             if best_marker_index is not None:
+                self._found_aruco_flag = True
                 self._marker_id = best_marker_id
                 self._corner_list = best_corner_list
                 self._center_coords = best_center_coords

@@ -52,7 +52,7 @@ class Controller(Node):
 
         # topic name
         self._image_topic = "/camera/image_raw"
-        self._camera_info_topic = "/camera_info"
+        self._camera_info_topic = "/camera/camera_info"
         self._cmd_vel_topic = "/cmd_vel"
         self._process_img_topic = "/process_img"
 
@@ -72,15 +72,8 @@ class Controller(Node):
         self.velocity_pub = self.create_publisher(Twist, self._cmd_vel_topic, 10)
 
         # SUBSCRIBER
-        ### ------COMMENT the following Line, if running simulation
         self.camera_subscriber = None
 
-        ### ------UNCOMMENT the following Line, if running simulation
-        # self.camera_subscriber = self.create_subscription(
-        #         Image, self._image_topic, self.camera_callback, 10
-        #     )
-
-        ### ------COMMENT the following Line, if running simulation
         self._camera_info_sub = self.create_subscription(
             CameraInfo, self._camera_info_topic, self._camera_info_callback, 10
         )
@@ -130,15 +123,18 @@ class Controller(Node):
         # detect obstacle
         obstacle_detected, obstacle_bbox = detect_obstacle(raw_image)
 
-        # aruco_detected,aruco_id,aruco_corner_list,aruco_center,aruco_yaw,arrows = self.aruco_orientation.get_results(gray)
-        (
-            aruco_detected,
-            _,
-            aruco_corner_list,
-            aruco_center,
-            aruco_yaw,
-            arrow_pt,
-        ) = self.aruco_orientation.get_results2(gray)
+        aruco_detected, _, aruco_corner_list, aruco_center, aruco_yaw, arrow_pt = (
+            self.aruco_orientation.get_results(gray)
+        )
+        
+        # (
+        #     aruco_detected,
+        #     _,
+        #     aruco_corner_list,
+        #     aruco_center,
+        #     aruco_yaw,
+        #     arrow_pt,
+        # ) = self.aruco_orientation.get_results2(gray)
 
         # LOGIC
         if not self.horizon_detected:
