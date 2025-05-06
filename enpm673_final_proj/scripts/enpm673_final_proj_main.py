@@ -53,26 +53,32 @@ class Controller(Node):
         self._dist_coeff = None
 
         # topic name
-        self._image_topic = "/camera/image_raw"
-        self._compress_img_topic = "/tb4_1/compressxxx"
-        self._camera_info_topic = "/camera/camera_info"
-        self._cmd_vel_topic = "/cmd_vel"
+        # self._image_topic = "/camera/image_raw"
+        # self._compress_img_topic = "/tb4_1/compressxxx"
+        # self._camera_info_topic = "/camera/camera_info"
+        # self._cmd_vel_topic = "/tb4_2/cmd_vel"
+        # self._process_img_topic = "/process_img"
+        
+        self._image_topic = "/tb4_2/oakd/rgb/image_raw"
+        self._compress_img_topic = "/tb4_2/oakd/rgb/image_raw/compressed"
+        self._camera_info_topic = "/tb4_2/oakd/rgb/camera_info"
+        self._cmd_vel_topic = "/tb4_2/cmd_vel"
         self._process_img_topic = "/process_img"
 
         self._process_freq = 20
         self.bridge = CvBridge()
 
         # PUBLISHER
-        self.velocity_msg = Twist()
         self._process_img_pub = self.create_publisher(
             Image, self._process_img_topic, 10
         )
 
         ### ------COMMENT the following Line, if running simulation
-        # self.velocity_msg = TwistStamped()
-        # self.velocity_pub = self.create_publisher(TwistStamped, "tb4_1/cmd_vel", 10)
+        self.velocity_msg = TwistStamped()
+        self.velocity_pub = self.create_publisher(TwistStamped, self._cmd_vel_topic, 10)
 
-        self.velocity_pub = self.create_publisher(Twist, self._cmd_vel_topic, 10)
+        # self.velocity_msg = Twist()
+        # self.velocity_pub = self.create_publisher(Twist, self._cmd_vel_topic, 10)
 
         # SUBSCRIBER
         self.camera_subscriber = None
@@ -109,7 +115,7 @@ class Controller(Node):
             # self.camera_subscriber = self.create_subscription(
             #     Image, self._image_topic, self.camera_callback, 10
             # )
-
+            self.get_logger().info("I received image info")
             self._compress_img_sub = self.create_subscription(
                 CompressedImage,
                 self._compress_img_topic,
@@ -155,12 +161,14 @@ class Controller(Node):
 
         # LOGIC
         if not self.horizon_detected:
-            self.kl = 0.0005
+            # self.kl = 0.0005
+            self.kl = 1
             self.horizon_vp1, self.horizon_vp2, self.horizon_detected = detect_horizon(
                 gray_thresh, attempt_by_aruco=False, corner_list=aruco_corner_list
             )
         else:
-            self.kl = 0.004
+            # self.kl = 0.004
+            self.kl = 1
             self.draw_horizon_line(canvas, self.horizon_vp1, self.horizon_vp2)
             self.get_logger().info(
                 f"Horizon at detected {self.horizon_vp1} {self.horizon_vp2}"
@@ -209,14 +217,14 @@ class Controller(Node):
 
     def publish_velocity(self, linear_velocity, angular_velocity) -> None:
         # Twist
-        self.velocity_msg.linear.x = linear_velocity
-        self.velocity_msg.angular.z = angular_velocity
+        # self.velocity_msg.linear.x = float(linear_velocity)
+        # self.velocity_msg.angular.z = float(angular_velocity)
 
         # TwistStamped
-        # self.velocity_msg.header.stamp = self.get_clock().now().to_msg()
-        # self.velocity_msg.header.frame_id = "odom"
-        # self.velocity_msg.twist.linear.x = linear_velocity
-        # self.velocity_msg.twist.angular.z = angular_velocity
+        self.velocity_msg.header.stamp = self.get_clock().now().to_msg()
+        self.velocity_msg.header.frame_id = "odom"
+        self.velocity_msg.twist.linear.x = float(linear_velocity)
+        self.velocity_msg.twist.angular.z = float(angular_velocity)
 
         self.velocity_pub.publish(self.velocity_msg)
 
