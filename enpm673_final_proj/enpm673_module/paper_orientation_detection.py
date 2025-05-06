@@ -31,7 +31,7 @@ class Orientation:
         self._center_coords = None
         self._marker_id = None
 
-        self._heading_length = 0.05
+        self._heading_length = 0.3
         self._arrow_pt1 = 0
         self._arrow_pt2 = 0
         self._yaw = 0
@@ -249,6 +249,87 @@ class Orientation:
                     np.array([[self._heading_length, 0, 0]], dtype=np.float32),
                     rvec,
                     tvec,
+                    camera_matrix,
+                    dist_coeffs,
+                )
+
+                self._arrow_pt1 = tuple(origin_2D[0][0].astype(int))
+                self._arrow_pt2 = tuple(target_2D[0][0].astype(int))
+
+        # flag, ArUco-id, corner-coords, center, yaw(degree), heading arrow pts(tuple)
+
+        return (
+            self._found_aruco_flag,
+            self._marker_id,
+            self._corner_list,
+            self._center_coords,
+            self._yaw,
+            (self._arrow_pt1, self._arrow_pt2),
+        )
+
+    def get_results2(self, gray: np.ndarray):
+        self._found_aruco_flag = False
+
+        height, width = gray.shape[:2]
+
+        # Detect markers
+        corners, ids, rejected = self.detector.detectMarkers(gray)
+
+        # Estimate pose
+        camera_matrix, dist_coeffs = self.get_dummy_camera_params(width, height)
+
+        best_rvec = 0
+        best_tvec = 0
+        best_yaw = 0
+        best_corner_list = None
+        best_center_coords = None
+        best_marker_id = None
+
+        best_marker_index = None
+        best_yaw_abs = float("inf")
+
+        if ids is not None and len(ids) > 0:
+            self._found_aruco_flag = True
+
+            for i, corner in enumerate(corners):
+                corner_points = corner[0]
+                success, rvec, tvec = cv2.solvePnP(
+                    self._objp, corner_points, camera_matrix, dist_coeffs
+                )
+                if not success:
+                    continue
+
+                _, _, yaw = self.rotation_vector_to_euler_angles(rvec)
+                yaw = -1 * yaw  # Flip sign if needed
+
+                if abs(yaw) < best_yaw_abs:
+                    best_yaw_abs = abs(yaw)
+                    best_marker_index = i
+                    best_rvec = rvec
+                    best_tvec = tvec
+                    best_yaw = yaw
+                    best_corner_list = corner_points
+                    best_center_coords = np.mean(corner_points, axis=0).astype(int)
+                    best_marker_id = ids[i][0]
+
+            if best_marker_index is not None:
+                self._marker_id = best_marker_id
+                self._corner_list = best_corner_list
+                self._center_coords = best_center_coords
+                self._yaw = best_yaw
+
+                # Project heading arrow
+                origin_2D, _ = cv2.projectPoints(
+                    np.array([[0, 0, 0]], dtype=np.float32),
+                    best_rvec,
+                    best_tvec,
+                    camera_matrix,
+                    dist_coeffs,
+                )
+                target_2D, _ = cv2.projectPoints(
+                    np.array([[self._heading_length, 0, 0]], dtype=np.float32),
+                    best_rvec,
+                    best_tvec,
                     camera_matrix,
                     dist_coeffs,
                 )
