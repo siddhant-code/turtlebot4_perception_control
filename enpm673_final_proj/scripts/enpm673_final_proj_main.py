@@ -11,6 +11,7 @@ from rclpy.node import Node
 
 # interface modules
 from sensor_msgs.msg import Image
+from sensor_msgs.msg import CompressedImage
 from geometry_msgs.msg import Twist
 from sensor_msgs.msg import CameraInfo
 from geometry_msgs.msg import TwistStamped
@@ -53,6 +54,7 @@ class Controller(Node):
 
         # topic name
         self._image_topic = "/camera/image_raw"
+        self._compress_img_topic = "/tb4_1/compressxxx"
         self._camera_info_topic = "/camera/camera_info"
         self._cmd_vel_topic = "/cmd_vel"
         self._process_img_topic = "/process_img"
@@ -74,6 +76,7 @@ class Controller(Node):
 
         # SUBSCRIBER
         self.camera_subscriber = None
+        self._compress_img_sub = None
 
         self._camera_info_sub = self.create_subscription(
             CameraInfo, self._camera_info_topic, self._camera_info_callback, 10
@@ -103,14 +106,27 @@ class Controller(Node):
         )
 
         if ret:
-            self.camera_subscriber = self.create_subscription(
-                Image, self._image_topic, self.camera_callback, 10
+            # self.camera_subscriber = self.create_subscription(
+            #     Image, self._image_topic, self.camera_callback, 10
+            # )
+
+            self._compress_img_sub = self.create_subscription(
+                CompressedImage,
+                self._compress_img_topic,
+                self.camera_callback,
+                10,
             )
             self.destroy_subscription(self._camera_info_sub)
             self._camera_info_sub = None
 
-    def camera_callback(self, image_msg: Image) -> None:
-        raw_image = self.bridge.imgmsg_to_cv2(image_msg, desired_encoding="bgr8")
+    def camera_callback(self, image_msg: CompressedImage) -> None:
+    # def camera_callback(self, image_msg: Image) -> None:
+    
+        np_arr = np.frombuffer(image_msg.data, np.uint8)
+        raw_image = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+
+        # RAW Image
+        # raw_image = self.bridge.imgmsg_to_cv2(image_msg, desired_encoding="bgr8")
 
         canvas = raw_image.copy()
         # height, width, channels = canvas.shape
@@ -127,7 +143,7 @@ class Controller(Node):
         aruco_detected, _, aruco_corner_list, aruco_center, aruco_yaw, arrow_pt = (
             self.aruco_orientation.get_results(gray)
         )
-        
+
         # (
         #     aruco_detected,
         #     _,
