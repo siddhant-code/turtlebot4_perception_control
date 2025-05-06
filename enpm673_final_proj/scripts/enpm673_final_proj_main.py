@@ -1,57 +1,146 @@
 #!/usr/bin/env python3
+
+# std modules
 import cv2
-import rclpy
 import numpy as np
-from rclpy.node import Node
 from cv_bridge import CvBridge
+
+# ros modules
+import rclpy
+from rclpy.node import Node
+
+# interface modules
 from sensor_msgs.msg import Image
 from geometry_msgs.msg import Twist
+from sensor_msgs.msg import CameraInfo
 from geometry_msgs.msg import TwistStamped
-from enpm673_module.horizon_detection import detect_horizon
-from enpm673_module.stop_sign_detection import detect_stop_sign
-from enpm673_module.obstacle_detection import detect_obstacle
-from enpm673_module.paper_orientation_detection import Orientation
+
+# user modules
 from enpm673_module import preprocessing
+from enpm673_module.horizon_detection import detect_horizon
+from enpm673_module.obstacle_detection import detect_obstacle
+from enpm673_module.stop_sign_detection import detect_stop_sign
+from enpm673_module.paper_orientation_detection import Orientation
+
+
+"""
+
+PUBLISHER:
+    cmd_vel
+    process_img
+
+SUBSCRIBER:
+    camera_info
+    image
+
+
+
+
+
+"""
 
 
 class Controller(Node):
     def __init__(self) -> None:
         super().__init__("controller_node")
+
+        # Attributes
+        self._height = 720
+        self._width = 1280
+        self._camera_matrix = None
+        self._dist_coeff = None
+
+        # topic name
+        self._image_topic = "/camera/image_raw"
+        self._camera_info_topic = "/camera_info"
+        self._cmd_vel_topic = "/cmd_vel"
+        self._process_img_topic = "/process_img"
+
         self._process_freq = 20
         self.bridge = CvBridge()
-        self.camera_subscriber = self.create_subscription(
-            Image, "/camera/image_raw", self.camera_callback, 10
-        )
-        self._process_img_pub = self.create_publisher(Image, "/process_img", 10)
 
-        self.velocity_pub = self.create_publisher(Twist, "/cmd_vel", 10)
+        # PUBLISHER
         self.velocity_msg = Twist()
+        self._process_img_pub = self.create_publisher(
+            Image, self._process_img_topic, 10
+        )
 
-        # self.velocity_pub = self.create_publisher(TwistStamped, "tb4_1/cmd_vel", 10)
+        ### ------COMMENT the following Line, if running simulation
         # self.velocity_msg = TwistStamped()
+        # self.velocity_pub = self.create_publisher(TwistStamped, "tb4_1/cmd_vel", 10)
+
+        self.velocity_pub = self.create_publisher(Twist, self._cmd_vel_topic, 10)
+
+        # SUBSCRIBER
+        ### ------COMMENT the following Line, if running simulation
+        self.camera_subscriber = None
+
+        ### ------UNCOMMENT the following Line, if running simulation
+        # self.camera_subscriber = self.create_subscription(
+        #         Image, self._image_topic, self.camera_callback, 10
+        #     )
+
+        ### ------COMMENT the following Line, if running simulation
+        self._camera_info_sub = self.create_subscription(
+            CameraInfo, self._camera_info_topic, self._camera_info_callback, 10
+        )
 
         self.horizon_detected = False
         self.horizon_x, self.horizon_y = None, None
+
         self.aruco_orientation = Orientation()
         self.aruco_missing_count = 0
 
+    def _camera_info_callback(self, msg: CameraInfo):
+        self._height = msg.height
+        self._width = msg.width
+
+        # Camera matrix (3x3)
+        self._camera_matrix = np.array(msg.k).reshape((3, 3))
+
+        # Distortion coefficients (length 5 or more)
+        self._dist_coeff = np.array(msg.d)
+
+        ret = self.aruco_orientation.set_camera_param(
+            height=self._height,
+            width=self._width,
+            cam_matrix=self._camera_matrix,
+            dist_coeffs=self._dist_coeff,
+        )
+
+        if ret:
+            self.camera_subscriber = self.create_subscription(
+                Image, self._image_topic, self.camera_callback, 10
+            )
+            self.destroy_subscription(self._camera_info_sub)
+            self._camera_info_sub = None
+
     def camera_callback(self, image_msg: Image) -> None:
         raw_image = self.bridge.imgmsg_to_cv2(image_msg, desired_encoding="bgr8")
+
         canvas = raw_image.copy()
-        height, width, channels = canvas.shape
+        # height, width, channels = canvas.shape
+
         gray = cv2.cvtColor(raw_image, cv2.COLOR_BGR2GRAY)
         _, gray_thresh = cv2.threshold(gray, 190, 255, cv2.THRESH_BINARY)
+
+        # stop sign
         stop_sign_detected, stop_sign_bbox = detect_stop_sign(raw_image)
+
+        # detect obstacle
         obstacle_detected, obstacle_bbox = detect_obstacle(raw_image)
+
         # aruco_detected,aruco_id,aruco_corner_list,aruco_center,aruco_yaw,arrows = self.aruco_orientation.get_results(gray)
         (
             aruco_detected,
-            aruco_id,
+            _,
             aruco_corner_list,
             aruco_center,
             aruco_yaw,
             arrow_pt,
         ) = self.aruco_orientation.get_results2(gray)
+
+        # LOGIC
         if not self.horizon_detected:
             self.kl = 0.0005
             self.horizon_vp1, self.horizon_vp2, self.horizon_detected = detect_horizon(
@@ -82,8 +171,8 @@ class Controller(Node):
             if aruco_detected:
                 self.aruco_missing_count = 0
                 aruco_x, aruco_y = aruco_center
-                angular_error = width / 2 - aruco_x
-                linear_error = height - aruco_y
+                angular_error = self._width / 2 - aruco_x
+                linear_error = self._height - aruco_y
                 angular_vel = 0.001 * angular_error
                 linear_vel = self.kl * linear_error
                 if abs(angular_error) > 3:

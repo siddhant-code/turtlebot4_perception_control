@@ -27,6 +27,12 @@ class Orientation:
         self._marker_length = 0.10  # 10 cm
         self._found_aruco_flag = False
 
+        # Camera Parameters
+        self._height = 720
+        self._width = 1280
+        self._camera_matrix = None
+        self._dist_coeff = None
+
         self._corner_list = None
         self._center_coords = None
         self._marker_id = None
@@ -54,6 +60,20 @@ class Orientation:
 
         self.parameters = cv2.aruco.DetectorParameters()
         self.detector = cv2.aruco.ArucoDetector(self.aruco_dict, self.parameters)
+
+    def set_camera_param(self, height, width, cam_matrix, dist_coeffs):
+        flag = False
+        try:
+            self._height = height
+            self._width = width
+            self._camera_matrix = cam_matrix
+            self._dist_coeff = dist_coeffs
+
+            flag = True
+        except Exception:
+            flag = False
+
+        return flag
 
     def get_dummy_camera_params(self, width, height):
         camera_matrix = np.array(
@@ -270,13 +290,13 @@ class Orientation:
     def get_results2(self, gray: np.ndarray):
         self._found_aruco_flag = False
 
-        height, width = gray.shape[:2]
+        # height, width = gray.shape[:2]
 
         # Detect markers
         corners, ids, rejected = self.detector.detectMarkers(gray)
 
         # Estimate pose
-        camera_matrix, dist_coeffs = self.get_dummy_camera_params(width, height)
+        # camera_matrix, dist_coeffs = self.get_dummy_camera_params(width, height)
 
         best_rvec = 0
         best_tvec = 0
@@ -294,7 +314,7 @@ class Orientation:
             for i, corner in enumerate(corners):
                 corner_points = corner[0]
                 success, rvec, tvec = cv2.solvePnP(
-                    self._objp, corner_points, camera_matrix, dist_coeffs
+                    self._objp, corner_points, self._camera_matrix, self._dist_coeff
                 )
                 if not success:
                     continue
@@ -323,15 +343,15 @@ class Orientation:
                     np.array([[0, 0, 0]], dtype=np.float32),
                     best_rvec,
                     best_tvec,
-                    camera_matrix,
-                    dist_coeffs,
+                    self._camera_matrix,
+                    self._dist_coeff,
                 )
                 target_2D, _ = cv2.projectPoints(
                     np.array([[self._heading_length, 0, 0]], dtype=np.float32),
                     best_rvec,
                     best_tvec,
-                    camera_matrix,
-                    dist_coeffs,
+                    self._camera_matrix,
+                    self._dist_coeff,
                 )
 
                 self._arrow_pt1 = tuple(origin_2D[0][0].astype(int))
