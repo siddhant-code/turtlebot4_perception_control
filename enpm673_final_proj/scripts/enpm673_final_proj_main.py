@@ -70,6 +70,7 @@ class Controller(Node):
         self._process_img_topic = "/process_img"
 
         self._process_freq = 20
+        self.prev_img = None
         self.bridge = CvBridge()
 
         # PUBLISHER
@@ -148,12 +149,12 @@ class Controller(Node):
         stop_sign_detected, stop_sign_bbox = detect_stop_sign(raw_image)
 
         # detect obstacle
-        obstacle_detected, obstacle_bbox = detect_obstacle(raw_image)
+        obstacle_detected, obstacle_bbox = detect_obstacle(raw_image, self.prev_img)
 
         aruco_detected, _, aruco_corner_list, aruco_center, aruco_yaw, arrow_pt = (
             self.aruco_orientation.get_results(gray)
         )
-
+        
         # (
         #     aruco_detected,
         #     _,
@@ -226,6 +227,8 @@ class Controller(Node):
                         self.publish_velocity(0.0, -0.01)
 
         self.publish_image(canvas)
+
+        self.prev_img = raw_image
 
     def publish_image(self, image) -> None:
         processed_image = self.bridge.cv2_to_imgmsg(image, encoding="bgr8")
