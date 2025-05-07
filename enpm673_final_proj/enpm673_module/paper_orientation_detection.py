@@ -26,11 +26,11 @@ from sensor_msgs.msg import Image
 
 
 class Orientation:
-    def __init__(self) -> None:
+    def __init__(self,in_simulation) -> None:
         # Marker size in meters (for pose estimation)
         self._marker_length = 0.10  # 10 cm
         self._found_aruco_flag = False
-
+        self.in_simulation = in_simulation
         # Camera Parameters (default parameters)
         self._height = 720
         self._width = 1280
@@ -66,7 +66,8 @@ class Orientation:
         # ArUco dictionary and detector
         self.aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_APRILTAG_36H11)
         # self.aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_1000)
-        # self.aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
+        if self.in_simulation:
+            self.aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
 
         self.parameters = cv2.aruco.DetectorParameters()
         self.detector = cv2.aruco.ArucoDetector(self.aruco_dict, self.parameters)
