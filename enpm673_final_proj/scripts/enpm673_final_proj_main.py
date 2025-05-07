@@ -37,16 +37,18 @@ class Controller(Node):
         self._width = 1280
         self._camera_matrix = None
         self._dist_coeff = None
-        self.obstacle_detector = ObstacleDetection()
+        
         self.mode = config["MODE"].get("mode")
         self.angular_threshold = config[self.mode].getfloat("angular_threshold")
         self.kl = config[self.mode].getfloat("kl")
         self.ka = config[self.mode].getfloat("ka")
+        self.obstacle_mag = config[self.mode].getfloat("obstacle_mag")
         self.max_lin_vel = config[self.mode].getfloat("max_linear_velocity")
         self.search_ang_vel = config[self.mode].getfloat("search_angular_velocity")
         self.max_ang_vel = config[self.mode].getfloat("max_angular_velocity")
         self.use_preview = config[self.mode].getboolean("use_preview")
         self.in_simulation = config[self.mode].getboolean("in_simulation")
+        self.obstacle_detector = ObstacleDetection(self.obstacle_mag)
         if self.in_simulation:
             self.use_preview = False
         self.bot_name = config[self.mode].get("bot_name")
@@ -131,7 +133,7 @@ class Controller(Node):
         # detect obstacle
         obstacle_detected, obstacle_bbox = self.obstacle_detector.detect_obstacle(raw_image, self.prev_img)
         aruco_detected, _, aruco_corner_list, aruco_center, aruco_yaw, arrow_pt = (
-            self.aruco_orientation.get_results(gray_thresh)
+            self.aruco_orientation.get_results(gray)
         )                    
         if not self.horizon_detected:
             self.horizon_vp1, self.horizon_vp2, self.horizon_detected = detect_horizon(
