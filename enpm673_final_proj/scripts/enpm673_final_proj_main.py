@@ -58,9 +58,13 @@ class Controller(Node):
         # self._camera_info_topic = "/camera/camera_info"
         # self._cmd_vel_topic = "/tb4_2/cmd_vel"
         # self._process_img_topic = "/process_img"
-        
+
         self._image_topic = "/tb4_2/oakd/rgb/image_raw"
         self._compress_img_topic = "/tb4_2/oakd/rgb/image_raw/compressed"
+
+        # self._image_topic = "/tb4_2/oakd/rgb/preview/image_raw"
+        # self._compress_img_topic = "/tb4_2/oakd/rgb/preview/image_raw/compressed"
+
         self._camera_info_topic = "/tb4_2/oakd/rgb/camera_info"
         self._cmd_vel_topic = "/tb4_2/cmd_vel"
         self._process_img_topic = "/process_img"
@@ -75,10 +79,10 @@ class Controller(Node):
 
         ### ------COMMENT the following Line, if running simulation
         self.velocity_msg = TwistStamped()
-        self.velocity_pub = self.create_publisher(TwistStamped, self._cmd_vel_topic, 10)
+        self.velocity_pub = self.create_publisher(TwistStamped, self._cmd_vel_topic, 1)
 
         # self.velocity_msg = Twist()
-        # self.velocity_pub = self.create_publisher(Twist, self._cmd_vel_topic, 10)
+        # self.velocity_pub = self.create_publisher(Twist, self._cmd_vel_topic, 1)
 
         # SUBSCRIBER
         self.camera_subscriber = None
@@ -126,8 +130,8 @@ class Controller(Node):
             self._camera_info_sub = None
 
     def camera_callback(self, image_msg: CompressedImage) -> None:
-    # def camera_callback(self, image_msg: Image) -> None:
-    
+        # def camera_callback(self, image_msg: Image) -> None:
+
         np_arr = np.frombuffer(image_msg.data, np.uint8)
         raw_image = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
 
@@ -160,15 +164,19 @@ class Controller(Node):
         # ) = self.aruco_orientation.get_results2(gray)
 
         # LOGIC
+        # self.kl = 0.1 # smooth slow
+        self.kl = 0.5
+        self.ka = 0.000001
+
         if not self.horizon_detected:
             # self.kl = 0.0005
-            self.kl = 1
+            # self.kl = 0.01
             self.horizon_vp1, self.horizon_vp2, self.horizon_detected = detect_horizon(
                 gray_thresh, attempt_by_aruco=False, corner_list=aruco_corner_list
             )
         else:
             # self.kl = 0.004
-            self.kl = 1
+            # self.kl = 1
             self.draw_horizon_line(canvas, self.horizon_vp1, self.horizon_vp2)
             self.get_logger().info(
                 f"Horizon at detected {self.horizon_vp1} {self.horizon_vp2}"
@@ -178,9 +186,10 @@ class Controller(Node):
             self.get_logger().info("Stop sign detected!")
             canvas = self.draw_bbox(canvas, stop_sign_bbox, "Stop Sign")
         if obstacle_bbox:
-            self.get_logger().info("Obstacle detected!")
+            # self.get_logger().info("Obstacle detected!")
             canvas = self.draw_bbox(canvas, obstacle_bbox, "Dynamic obstacle")
         if aruco_detected:
+            self.get_logger().info("ArUco detected!")
             canvas = self.draw_point(canvas, aruco_center[0], aruco_center[1])
             cv2.arrowedLine(
                 canvas, arrow_pt[0], arrow_pt[1], (255, 255, 0), 4, tipLength=0.5
@@ -190,24 +199,31 @@ class Controller(Node):
             self.publish_velocity(0.0, 0.0)
         else:
             if aruco_detected:
+                self.get_logger().warn("move towards aruco!")
                 self.aruco_missing_count = 0
                 aruco_x, aruco_y = aruco_center
                 angular_error = self._width / 2 - aruco_x
                 linear_error = self._height - aruco_y
-                angular_vel = 0.001 * angular_error
+
+                angular_vel = self.ka * angular_error
                 linear_vel = self.kl * linear_error
-                if abs(angular_error) > 3:
+
+                if abs(angular_error) > 200:
+                    self.get_logger().warn(f"angular error greater: {angular_error}")
                     self.publish_velocity(0.01, angular_vel)
                 else:
                     self.publish_velocity(linear_vel, 0.0)
+
+                # self.publish_velocity(linear_vel, angular_vel)
             else:
+                self.get_logger().error("aruco missing!")
                 self.aruco_missing_count += 1
                 if self.aruco_missing_count > 50:
                     self.get_logger().info("Looking for Aruco marker!")
                     if aruco_yaw > 0:
-                        self.publish_velocity(0.0, 0.09)
+                        self.publish_velocity(0.0, 0.01)
                     else:
-                        self.publish_velocity(0.0, -0.09)
+                        self.publish_velocity(0.0, -0.01)
 
         self.publish_image(canvas)
 
@@ -223,6 +239,7 @@ class Controller(Node):
         # TwistStamped
         self.velocity_msg.header.stamp = self.get_clock().now().to_msg()
         self.velocity_msg.header.frame_id = "odom"
+
         self.velocity_msg.twist.linear.x = float(linear_velocity)
         self.velocity_msg.twist.angular.z = float(angular_velocity)
 

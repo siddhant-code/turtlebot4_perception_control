@@ -12,7 +12,8 @@ import math
 import numpy as np
 import random
 
-CHESSBOARD_SIZE = (7,5)
+# CHESSBOARD_SIZE = (7,5)
+CHESSBOARD_SIZE = (7,4)
 
 # def detect_horizon_chessboard(gray):
     
