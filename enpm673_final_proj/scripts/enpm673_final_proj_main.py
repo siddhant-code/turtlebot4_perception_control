@@ -66,6 +66,7 @@ class Controller(Node):
         self._process_img_topic = "/process_img"
 
         self._process_freq = 20
+        self.prev_img = None
         self.bridge = CvBridge()
 
         # PUBLISHER
@@ -149,7 +150,7 @@ class Controller(Node):
         aruco_detected, _, aruco_corner_list, aruco_center, aruco_yaw, arrow_pt = (
             self.aruco_orientation.get_results(gray)
         )
-
+        
         # (
         #     aruco_detected,
         #     _,
