@@ -4,6 +4,7 @@
 import cv2
 import numpy as np
 from cv_bridge import CvBridge
+import configparser
 
 # ros modules
 import rclpy
@@ -39,7 +40,8 @@ SUBSCRIBER:
 
 
 """
-
+config = configparser.ConfigParser()
+config.read('config.ini')
 
 class Controller(Node):
     def __init__(self) -> None:
@@ -56,17 +58,17 @@ class Controller(Node):
         # self._image_topic = "/camera/image_raw"
         # self._compress_img_topic = "/tb4_1/compressxxx"
         # self._camera_info_topic = "/camera/camera_info"
-        # self._cmd_vel_topic = "/tb4_2/cmd_vel"
+        # self._cmd_vel_topic = f"/{self.bot_name}/cmd_vel"
         # self._process_img_topic = "/process_img"
 
-        self._image_topic = "/tb4_2/oakd/rgb/image_raw"
-        self._compress_img_topic = "/tb4_2/oakd/rgb/image_raw/compressed"
+        self._image_topic = f"/{self.bot_name}/oakd/rgb/image_raw"
+        self._compress_img_topic = f"/{self.bot_name}/oakd/rgb/image_raw/compressed"
 
-        # self._image_topic = "/tb4_2/oakd/rgb/preview/image_raw"
-        # self._compress_img_topic = "/tb4_2/oakd/rgb/preview/image_raw/compressed"
+        # self._image_topic = f"/{self.bot_name}/oakd/rgb/preview/image_raw"
+        # self._compress_img_topic = f"/{self.bot_name}/oakd/rgb/preview/image_raw/compressed"
 
-        self._camera_info_topic = "/tb4_2/oakd/rgb/camera_info"
-        self._cmd_vel_topic = "/tb4_2/cmd_vel"
+        self._camera_info_topic = f"/{self.bot_name}/oakd/rgb/camera_info"
+        self._cmd_vel_topic = f"/{self.bot_name}/cmd_vel"
         self._process_img_topic = "/process_img"
 
         self._process_freq = 20
@@ -166,8 +168,11 @@ class Controller(Node):
 
         # LOGIC
         # self.kl = 0.1 # smooth slow
-        self.kl = 0.5
-        self.ka = 0.000001
+
+
+                    
+        self.kl = config.getfloat('DEFAULT', 'kl', fallback=0.5)
+        self.ka = config.getfloat('DEFAULT', 'ka', fallback=0.000001)
 
         if not self.horizon_detected:
             # self.kl = 0.0005
