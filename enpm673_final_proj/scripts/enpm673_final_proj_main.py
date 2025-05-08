@@ -127,7 +127,7 @@ class Controller(Node):
         canvas = raw_image.copy()
         self._height, self._width, channels = canvas.shape
         gray = cv2.cvtColor(raw_image, cv2.COLOR_BGR2GRAY)
-        _, gray_thresh = cv2.threshold(gray, 190, 255, cv2.THRESH_BINARY)
+        _, gray_thresh = cv2.threshold(gray, 200, 255, cv2.THRESH_BINARY)
         # stop sign
         stop_sign_detected, stop_sign_bbox = detect_stop_sign(raw_image)
         # detect obstacle
@@ -137,7 +137,7 @@ class Controller(Node):
         )                    
         if not self.horizon_detected:
             self.horizon_vp1, self.horizon_vp2, self.horizon_detected = detect_horizon(
-                gray_thresh, attempt_by_aruco=False, corner_list=aruco_corner_list
+                gray_thresh, attempt_by_aruco=True, corner_list=aruco_corner_list
             )
         else:
             self.draw_horizon_line(canvas, self.horizon_vp1, self.horizon_vp2)
@@ -159,8 +159,7 @@ class Controller(Node):
         if stop_sign_detected or obstacle_detected:
             self.publish_velocity(0.0, 0.0)
         else:
-            if aruco_detected:
-                
+            if aruco_detected:               
                 self.aruco_missing_count = 0
                 aruco_x, aruco_y = aruco_center
                 angular_error = self._width / 2 - aruco_x
@@ -173,7 +172,6 @@ class Controller(Node):
                 else:
                     self.get_logger().warn("Moving towards aruco!")
                     self.publish_velocity(linear_vel, 0.0)
-
             else:
                 self.get_logger().error("aruco missing!")
                 self.aruco_missing_count += 1
