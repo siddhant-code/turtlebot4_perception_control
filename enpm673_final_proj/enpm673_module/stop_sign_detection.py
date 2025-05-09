@@ -19,7 +19,7 @@ from ultralytics import YOLO
 
 model = YOLO("yolov8n.pt")
 def detect_stop_sign( frame):
-    results = model(frame)
+    results = model(source=frame, verbose=False)
 
     detected = False
     bbox = None
