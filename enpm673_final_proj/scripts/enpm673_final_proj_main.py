@@ -47,10 +47,10 @@ class Controller(Node):
 
         self.horizon_vp1 = (-1, -1)
         self.horizon_vp2 = (-1, -1)
-        
+
         self.horizon_detected = False
         self.horizon_x, self.horizon_y = None, None
-        
+
         self.aruco_missing_count = 0
 
         # configuration Attributes
@@ -71,7 +71,8 @@ class Controller(Node):
 
         if self.in_simulation:
             self.use_preview = False
-            
+
+        # self.bot_name = config[self.mode].get("bot_name")
         self.bot_name = config[self.mode].get("bot_name")
         self._process_freq = 20
         self.prev_img = None
@@ -85,40 +86,49 @@ class Controller(Node):
             self._image_topic = "/camera/image_raw"
             self._compress_img_topic = "/camera/image_raw"
             self._camera_info_topic = "/camera/camera_info"
-            
+
             self.velocity_msg = Twist()
             self._cmd_vel_topic = "/cmd_vel"
             self.velocity_pub = self.create_publisher(Twist, self._cmd_vel_topic, 1)
         else:
             self._image_topic = f"/{self.bot_name}/oakd/rgb/image_raw"
+
+            self._camera_info_topic = f"/{self.bot_name}/oakd/rgb/camera_info"
             self._compress_img_topic = f"/{self.bot_name}/oakd/rgb/image_raw/compressed"
-            
+
             if self.use_preview:
                 self._image_topic = f"/{self.bot_name}/oakd/rgb/preview/image_raw"
+
                 self._compress_img_topic = (
                     f"/{self.bot_name}/oakd/rgb/preview/image_raw/compressed"
                 )
-                
-            self._camera_info_topic = f"/{self.bot_name}/oakd/rgb/camera_info"
+                self._camera_info_topic = (
+                    f"/{self.bot_name}/oakd/rgb/preview/camera_info"
+                )
+
             self._cmd_vel_topic = f"/{self.bot_name}/cmd_vel"
-            
+            # self._cmd_vel_topic = f"/{self.bot_name}/cmd_vel"
+
             self.velocity_msg = TwistStamped()
             self.velocity_pub = self.create_publisher(
                 TwistStamped, self._cmd_vel_topic, 1
             )
-            
-            
+
         # SUBSCRIBER
+
+        self.get_logger().debug(f"{self._camera_info_topic}")
+        self.get_logger().debug("Camera info subscrber created.")
         self._camera_info_sub = self.create_subscription(
             CameraInfo, self._camera_info_topic, self._camera_info_callback, 10
         )
-        
+
         self.aruco_orientation = Orientation(self.in_simulation)
-        
+
         self.get_logger().info(f"{node_name} has started.")
         self.get_logger().info("All the Attributes are intialized.")
 
     def _camera_info_callback(self, msg: CameraInfo):
+        self.get_logger().debug("Camera_info called")
         self._height = msg.height
         self._width = msg.width
         # Camera matrix (3x3)
@@ -131,6 +141,7 @@ class Controller(Node):
             cam_matrix=self._camera_matrix,
             dist_coeffs=self._dist_coeff,
         )
+
         if ret:
             self.get_logger().debug("Camera info recieved succesfully")
             if self.in_simulation:
