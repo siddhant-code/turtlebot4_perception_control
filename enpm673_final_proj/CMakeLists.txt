@@ -10,7 +10,6 @@ find_package(ament_cmake REQUIRED)
 find_package(ament_cmake_python REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rclpy REQUIRED)
-find_package(gazebo REQUIRED)
 find_package(sensor_msgs REQUIRED)
 
 
@@ -51,32 +50,7 @@ install(FILES
   DESTINATION share/${PROJECT_NAME}/launch/
   )
 
-##############################
-# Animated_box gazebo plugin
-##############################
-add_library (animated_box SHARED src/animated_box.cpp)
-target_compile_options(animated_box PUBLIC "${GAZEBO_CXX_FLAGS}")
-target_include_directories(animated_box PUBLIC ${GAZEBO_INCLUDE_DIRS})
-target_link_directories(animated_box PUBLIC ${GAZEBO_LIBRARY_DIRS})
 
-install(TARGETS animated_box
-  DESTINATION lib/${PROJECT_NAME})
-
-##############################
-# Gazebo resouces
-##############################
-# Install gazebo world files
-install(FILES
-  worlds/enpm673.world
-  worlds/animated_box.world
-  DESTINATION share/${PROJECT_NAME}/worlds/
-  )
-
-# Install gazebo model files
-install(DIRECTORY
-  models
-  DESTINATION share/${PROJECT_NAME}/
-  )
 
 ##############################
 # Create ROS2 package
