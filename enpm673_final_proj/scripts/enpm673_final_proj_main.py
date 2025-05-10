@@ -107,7 +107,6 @@ class Controller(Node):
                 )
 
             self._cmd_vel_topic = f"/{self.bot_name}/cmd_vel"
-            # self._cmd_vel_topic = f"/{self.bot_name}/cmd_vel"
 
             self.velocity_msg = TwistStamped()
             self.velocity_pub = self.create_publisher(
