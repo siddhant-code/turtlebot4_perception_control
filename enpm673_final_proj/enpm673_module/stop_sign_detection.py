@@ -3,93 +3,99 @@
 """
 Detect stop sign
 
-Input: Preprocessed Frame/Masked frame/Frame from video (Decide what kind of frame would be useful)
+Input: Preprocessed Frame/Masked frame/Frame from video
 Output: 
     detected : True if detected otherwise False
     bounding box : (x,y,width,height) if detected otherwise None
 
 """
 
+#sudo apt-get install -y tesseract-ocr && pip install pytesseract pillow
 from ultralytics import YOLO
-# import cv2
-# import rclpy
-# from rclpy.node import Node
-# from sensor_msgs.msg import Image
-# from cv_bridge import CvBridge
+import cv2
+import numpy as np
+import pytesseract
+from PIL import Image
 
 model = YOLO("yolov8n.pt")
-def detect_stop_sign( frame):
-    results = model(frame)
 
+def preprocess_for_detection(frame):
+    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+
+    lower_red1 = np.array([0, 70, 50])
+    upper_red1 = np.array([10, 255, 255])
+    lower_red2 = np.array([160, 70, 50])
+    upper_red2 = np.array([180, 255, 255])
+    
+    #create masks for red color
+    mask1 = cv2.inRange(hsv, lower_red1, upper_red1)
+    mask2 = cv2.inRange(hsv, lower_red2, upper_red2)
+    red_mask = mask1 + mask2
+    
+
+    kernel = np.ones((3,3), np.uint8)
+    red_mask = cv2.morphologyEx(red_mask, cv2.MORPH_OPEN, kernel)
+    red_mask = cv2.morphologyEx(red_mask, cv2.MORPH_CLOSE, kernel)
+    
+    #apply the mask to the original image
+    red_filtered = cv2.bitwise_and(frame, frame, mask=red_mask)
+    return red_filtered
+
+def preprocess_for_ocr(frame, bbox):
+    x, y, w, h = bbox
+    pad = 2 
+    y_start = max(0, y - pad)
+    y_end = min(frame.shape[0], y + h + pad)
+    x_start = max(0, x - pad)
+    x_end = min(frame.shape[1], x + w + pad)
+    roi = frame[y_start:y_end, x_start:x_end]
+    
+
+    gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
+    gray = cv2.convertScaleAbs(gray, alpha=2.0, beta=0)
+    thresh = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 11, 2)
+    return thresh
+
+def verify_stop_text(frame, bbox):
+    processed_img = preprocess_for_ocr(frame, bbox)
+    pil_img = Image.fromarray(processed_img)
+    custom_config = '--psm 7 --oem 3'
+    
+    #extract text
+    text = pytesseract.image_to_string(pil_img, config=custom_config).strip().upper()
+    return "ST" in text or "TOP" in text or "STOP" in text
+
+def detect_stop_sign(frame):
+    #preprocess the frame to enhance red regions
+    preprocessed_frame = preprocess_for_detection(frame)
+
+    results_orig = model(source=frame, verbose=False, conf=0.25)
+    results_prep = model(source=preprocessed_frame, verbose=False, conf=0.25)
+    
     detected = False
     bbox = None
+    max_confidence = 0
 
-    for result in results[0].boxes:
-        class_id = int(result.cls.item())
-        confidence = result.conf.item()
-        if confidence > 0.5 and model.names[class_id] == "stop sign":
-            x1, y1, x2, y2 = map(int, result.xyxy[0].tolist())
-            bbox = (x1, y1, x2 - x1, y2 - y1)
-            detected = True
-            
+    #process results from both original and preprocessed frames
+    for results in [results_orig, results_prep]:
+        for result in results[0].boxes:
+            class_id = int(result.cls.item())
+            confidence = result.conf.item()
+
+            if model.names[class_id] == "stop sign" and confidence > max_confidence:
+                x1, y1, x2, y2 = map(int, result.xyxy[0].tolist())
+                temp_bbox = (x1, y1, x2 - x1, y2 - y1)
+                
+                #CR verification
+                if verify_stop_text(frame, temp_bbox):
+                    bbox = temp_bbox
+                    detected = True
+                    max_confidence = confidence
+                    break
+                
+                elif confidence > 0.6 and bbox is None:
+                    bbox = temp_bbox
+                    detected = True
+                    max_confidence = confidence
+    
     return detected, bbox
-
-# class StopSignDetector:
-#     def __init__(self):
-#         self.model = YOLO("yolov8n.pt")
-
-#     def detect_stop_sign(self, frame):
-#         results = self.model(frame)
-
-#         detected = False
-#         bbox = None
-
-#         for result in results[0].boxes:
-#             class_id = int(result.cls.item())
-#             confidence = result.conf.item()
-#             if confidence > 0.5 and self.model.names[class_id] == "stop sign":
-#                 x1, y1, x2, y2 = map(int, result.xyxy[0].tolist())
-#                 bbox = (x1, y1, x2 - x1, y2 - y1)
-#                 detected = True
-#                 cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-#                 cv2.putText(frame, "Stop Sign", (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-
-#         return detected, bbox
-
-# class StopSignDetectorNode(Node):
-#     def __init__(self):
-#         super().__init__('stop_sign_detector_node')
-#         self.detector = StopSignDetector()
-#         self.bridge = CvBridge()
-#         self.subscription = self.create_subscription(
-#             Image,
-#             '/camera/image_raw',
-#             self.image_callback,
-#             10
-#         )
-
-#     def image_callback(self, msg):
-#         try:
-#             frame = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
-#             detected_stop_sign, bbox_stop_sign = self.detector.detect_stop_sign(frame)
-#             cv2.imshow("Detection Results", frame)
-
-#             if cv2.waitKey(1) & 0xFF == ord('q'):
-#                 self.get_logger().info("Shutting down...")
-#                 rclpy.shutdown()
-
-#         except Exception as e:
-#             self.get_logger().error(f"Error processing image: {e}")
-
-# if __name__ == '__main__':
-#     rclpy.init()
-
-#     node = StopSignDetectorNode()
-#     try:
-#         rclpy.spin(node)
-#     except KeyboardInterrupt:
-#         pass
-#     finally:
-#         node.destroy_node()
-#         rclpy.shutdown()
-#         cv2.destroyAllWindows()

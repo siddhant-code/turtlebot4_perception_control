@@ -26,11 +26,12 @@ from sensor_msgs.msg import Image
 
 
 class Orientation:
-    def __init__(self) -> None:
+    def __init__(self, in_simulation) -> None:
         # Marker size in meters (for pose estimation)
         self._marker_length = 0.10  # 10 cm
         self._found_aruco_flag = False
-
+        self.in_simulation = in_simulation
+        
         # Camera Parameters (default parameters)
         self._height = 720
         self._width = 1280
@@ -64,9 +65,12 @@ class Orientation:
         )
 
         # ArUco dictionary and detector
-        self.aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_APRILTAG_36H11)
+        self.aruco_dict = cv2.aruco.getPredefinedDictionary(
+            cv2.aruco.DICT_APRILTAG_36H11
+        )
         # self.aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_1000)
-        # self.aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
+        if self.in_simulation:
+            self.aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
 
         self.parameters = cv2.aruco.DetectorParameters()
         self.detector = cv2.aruco.ArucoDetector(self.aruco_dict, self.parameters)
@@ -231,16 +235,10 @@ class Orientation:
     def get_results(self, gray: np.ndarray):
         self._found_aruco_flag = False
 
-        height, width = gray.shape[:2]
-
         # Detect markers
         corners, ids, rejected = self.detector.detectMarkers(gray)
 
-        # Estimate pose
-        camera_matrix, dist_coeffs = self.get_dummy_camera_params(width, height)
-
         if ids is not None and len(ids) > 0:
-
             # Compute center Y for each marker
             marker_centers = [np.mean(corner[0], axis=0) for corner in corners]
             center_ys = [center[1] for center in marker_centers]
@@ -258,7 +256,7 @@ class Orientation:
             self._center_coords = np.mean(self._corner_list, axis=0).astype(int)
 
             success, rvec, tvec = cv2.solvePnP(
-                self._objp, self._corner_list, camera_matrix, dist_coeffs
+                self._objp, self._corner_list, self._camera_matrix, self._dist_coeff
             )
             if success:
                 self._found_aruco_flag = True
@@ -272,95 +270,13 @@ class Orientation:
                     np.array([[0, 0, 0]], dtype=np.float32),
                     rvec,
                     tvec,
-                    camera_matrix,
-                    dist_coeffs,
-                )
-                target_2D, _ = cv2.projectPoints(
-                    np.array([[self._heading_length, 0, 0]], dtype=np.float32),
-                    rvec,
-                    tvec,
-                    camera_matrix,
-                    dist_coeffs,
-                )
-
-                self._arrow_pt1 = tuple(origin_2D[0][0].astype(int))
-                self._arrow_pt2 = tuple(target_2D[0][0].astype(int))
-
-        # flag, ArUco-id, corner-coords, center, yaw(degree), heading arrow pts(tuple)
-
-        return (
-            self._found_aruco_flag,
-            self._marker_id,
-            self._corner_list,
-            self._center_coords,
-            self._yaw,
-            (self._arrow_pt1, self._arrow_pt2),
-        )
-
-    def get_results2(self, gray: np.ndarray):
-        self._found_aruco_flag = False
-
-        # self._height, self._width = gray.shape[:2]
-
-        # Detect markers
-        corners, ids, rejected = self.detector.detectMarkers(gray)
-
-        # Estimate pose
-        # self._camera_matrix, self._dist_coeff = self.get_dummy_camera_params(
-        #     self._height, self._width
-        # )
-
-        best_rvec = 0
-        best_tvec = 0
-        best_yaw = 0
-        best_corner_list = None
-        best_center_coords = None
-        best_marker_id = None
-
-        best_marker_index = None
-        best_yaw_abs = float("inf")
-
-        if ids is not None and len(ids) > 0:
-            for i, corner in enumerate(corners):
-                corner_points = corner[0]
-                success, rvec, tvec = cv2.solvePnP(
-                    self._objp, corner_points, self._camera_matrix, self._dist_coeff
-                )
-                if not success:
-                    continue
-
-                _, _, yaw = self.rotation_vector_to_euler_angles(rvec)
-                yaw = -1 * yaw  # Flip sign if needed
-
-                if abs(yaw) < best_yaw_abs:
-                    best_yaw_abs = abs(yaw)
-                    best_marker_index = i
-                    best_rvec = rvec
-                    best_tvec = tvec
-                    best_yaw = yaw
-                    best_corner_list = corner_points
-                    best_center_coords = np.mean(corner_points, axis=0).astype(int)
-                    best_marker_id = ids[i][0]
-
-            if best_marker_index is not None:
-                self._found_aruco_flag = True
-                self._marker_id = best_marker_id
-                self._corner_list = best_corner_list
-                self._center_coords = best_center_coords
-                self._yaw = best_yaw
-
-                # Project heading arrow
-                origin_2D, _ = cv2.projectPoints(
-                    np.array([[0, 0, 0]], dtype=np.float32),
-                    best_rvec,
-                    best_tvec,
                     self._camera_matrix,
                     self._dist_coeff,
                 )
                 target_2D, _ = cv2.projectPoints(
                     np.array([[self._heading_length, 0, 0]], dtype=np.float32),
-                    best_rvec,
-                    best_tvec,
+                    rvec,
+                    tvec,
                     self._camera_matrix,
                     self._dist_coeff,
                 )

@@ -12,8 +12,7 @@ import math
 import numpy as np
 import random
 
-# CHESSBOARD_SIZE = (7,5)
-CHESSBOARD_SIZE = (7,4)
+CHESSBOARD_SIZE = (7,5)
 
 # def detect_horizon_chessboard(gray):
     
@@ -69,8 +68,14 @@ def detect_horizon_aruco(image,corner_list):
 def detect_horizon(image,attempt_by_aruco=False,corner_list=None): 
     vp1,vp2,detected = detect_horizon_chessboard(image)
     if not detected and attempt_by_aruco and (corner_list is not None):
-        vp1,vp2,detected = detect_horizon_aruco(image,corner_list)    
-    return vp1,vp2,detected
+        vp1,vp2,detected = detect_horizon_aruco(image,corner_list)  
+    a,b =   np.linalg.solve(np.array([vp1,vp2]),np.array([1,1]))
+    #ax+by=1
+    def func(x):
+        return (x,(1-a*x)/b)
+    x1,y1 = func(-1)
+    x2,y2 = func(2000)
+    return ((x1,y1),(x2,y2),detected)
 
 
 if __name__ == "__main__":
