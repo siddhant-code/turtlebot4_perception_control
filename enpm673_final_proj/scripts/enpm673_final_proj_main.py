@@ -289,14 +289,27 @@ class Controller(Node):
             self.velocity_pub.publish(self.velocity_msg)
 
     def draw_bbox(self, image, bbox, text):
-        x1, y1, width, height = bbox
-        x2 = x1 + width
-        y2 = y1 + height
-        cv2.rectangle(image, (x1, y1), (x2, y2), (0, 255, 0), 2)
-        cv2.putText(
-            image, text, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2
-        )
-        return image
+        if text == "Stop Sign":
+        
+            x1, y1, width, height = bbox
+            x2 = x1 + width
+            y2 = y1 + height
+            cv2.rectangle(image, (x1, y1), (x2, y2), (0, 255, 0), 2)
+            cv2.putText(
+                image, text, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2
+            )
+            return image
+
+        else:
+
+            x1, y1, width, height = bbox
+            x2 = x1 + width
+            y2 = y1 + height
+            cv2.rectangle(image, (x1, y1), (x2, y2), (0, 255, 0), 2)
+            cv2.putText(
+                image, text, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2
+            )
+            return image
 
     def draw_horizon_line(self, image, vp1, vp2):
         point1 = int(vp1[0]), int(vp1[1])
