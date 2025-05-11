@@ -67,6 +67,7 @@ class Controller(Node):
         self.max_ang_vel = config[self.mode].getfloat("max_angular_velocity")
         self.use_preview = config[self.mode].getboolean("use_preview")
         self.in_simulation = config[self.mode].getboolean("in_simulation")
+        self.optical_flow_another_method = config[self.mode].getboolean("another_method_of")
 
         self.obstacle_detector = ObstacleDetection(self.obstacle_mag)
 
@@ -181,11 +182,18 @@ class Controller(Node):
         stop_sign_detected, stop_sign_bbox, stop_sign_type = detect_stop_sign(raw_image)
 
         # detect obstacle
-        obstacle_detected, obstacle_bbox = self.obstacle_detector.detect_obstacle(
-            raw_image, self.prev_img
-        )
 
-        obstacle_detected = False
+        if self.optical_flow_another_method:
+            obstacle_detected, obstacle_bbox = self.obstacle_detector.detect_obstacle(
+                raw_image, self.prev_img
+            )
+
+        else:
+            obstacle_detected, obstacle_bbox = self.obstacle_detector.another_method(
+                raw_image, self.prev_img
+            )
+
+        # obstacle_detected = False
 
         # detect ArUco
         aruco_detected, _, aruco_corner_list, aruco_center, aruco_yaw, arrow_pt = (
