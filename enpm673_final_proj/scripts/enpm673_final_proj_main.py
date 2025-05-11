@@ -6,6 +6,7 @@ import numpy as np
 from cv_bridge import CvBridge
 import configparser
 from typing import Union
+import matplotlib.pyplot as plt
 
 # ros modules
 import rclpy
@@ -74,6 +75,7 @@ class Controller(Node):
 
         # self.bot_name = config[self.mode].get("bot_name")
         self.bot_name = config[self.mode].get("bot_name")
+        # self.bot_name = "tb4_1"
         self._process_freq = 20
         self.prev_img = None
         self.bridge = CvBridge()
@@ -158,6 +160,7 @@ class Controller(Node):
             self._camera_info_sub = None
 
     def camera_callback(self, image_msg: Union[CompressedImage, Image]) -> None:
+        print("hi")
         # def camera_callback(self, image_msg: Image) -> None:
         if isinstance(image_msg, CompressedImage):
             np_arr = np.frombuffer(image_msg.data, np.uint8)
@@ -175,12 +178,14 @@ class Controller(Node):
         _, gray_thresh = cv2.threshold(gray, 200, 255, cv2.THRESH_BINARY)
 
         # stop sign
-        stop_sign_detected, stop_sign_bbox = detect_stop_sign(raw_image)
+        stop_sign_detected, stop_sign_bbox, stop_sign_type = detect_stop_sign(raw_image)
 
         # detect obstacle
         obstacle_detected, obstacle_bbox = self.obstacle_detector.detect_obstacle(
             raw_image, self.prev_img
         )
+
+        obstacle_detected = False
 
         # detect ArUco
         aruco_detected, _, aruco_corner_list, aruco_center, aruco_yaw, arrow_pt = (
@@ -212,7 +217,7 @@ class Controller(Node):
             )
 
         # CMD_VEL
-        if stop_sign_detected or obstacle_detected:
+        if stop_sign_detected and stop_sign_type == "STOP" or obstacle_detected:
             self.publish_velocity(0.0, 0.0)
         else:
             if aruco_detected:
@@ -236,7 +241,7 @@ class Controller(Node):
                 self.aruco_missing_count += 1
                 if self.aruco_missing_count > 20:
                     self.get_logger().warn("Looking for Aruco marker!")
-                    if aruco_yaw > 0:
+                    if aruco_yaw > 90:
                         self.publish_velocity(0.0, self.search_ang_vel)
                     else:
                         self.publish_velocity(0.0, -self.search_ang_vel)
@@ -247,6 +252,11 @@ class Controller(Node):
     def publish_image(self, image) -> None:
         processed_image = self.bridge.cv2_to_imgmsg(image, encoding="bgr8")
         self._process_img_pub.publish(processed_image)
+
+         # Display the image using OpenCV (non-blocking)
+        cv2.imshow("Processed Image", image)
+        cv2.waitKey(1)  # 1ms delay; necessary for image to update
+
 
     def publish_velocity(self, linear_velocity, angular_velocity) -> None:
         if self.in_simulation:
@@ -262,8 +272,12 @@ class Controller(Node):
         else:
             self.velocity_msg.header.stamp = self.get_clock().now().to_msg()
             self.velocity_msg.header.frame_id = "odom"
-            self.velocity_msg.twist.linear.x = float(linear_velocity)
-            self.velocity_msg.twist.angular.z = float(angular_velocity)
+            self.velocity_msg.twist.linear.x = np.clip(
+                float(linear_velocity), -self.max_lin_vel, self.max_lin_vel
+            )
+            self.velocity_msg.twist.angular.z = np.clip(
+                float(angular_velocity), -self.max_ang_vel, self.max_ang_vel
+            )
             self.velocity_pub.publish(self.velocity_msg)
 
     def draw_bbox(self, image, bbox, text):

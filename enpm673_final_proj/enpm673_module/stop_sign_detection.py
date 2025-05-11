@@ -41,6 +41,13 @@ def preprocess_for_detection(frame):
     red_filtered = cv2.bitwise_and(frame, frame, mask=red_mask)
     return red_filtered
 
+def classify_sign_type(processed_img):
+    black_pixels = np.sum(processed_img == 255)
+    total_pixels = processed_img.shape[0] * processed_img.shape[1]
+    black_ratio = black_pixels / total_pixels
+    print(f"Black pixel ratio: {black_ratio:.2f}")
+    return "SLOW" if black_ratio > 0.20 else "STOP"
+
 def preprocess_for_ocr(frame, bbox):
     x, y, w, h = bbox
     pad = 2 
@@ -63,7 +70,14 @@ def verify_stop_text(frame, bbox):
     
     #extract text
     text = pytesseract.image_to_string(pil_img, config=custom_config).strip().upper()
-    return "ST" in text or "TOP" in text or "STOP" in text
+    print("\n-----------------Text detected: ",text)
+
+    if "STOP" in text or "TOP" in text or "ST" in text:
+        return "STOP"
+    elif "SLOW" in text or "SLO" in text:
+        return "SLOW"
+    else:
+        return classify_sign_type(processed_img)
 
 def detect_stop_sign(frame):
     #preprocess the frame to enhance red regions
@@ -74,6 +88,7 @@ def detect_stop_sign(frame):
     
     detected = False
     bbox = None
+    sign_type = None
     max_confidence = 0
 
     #process results from both original and preprocessed frames
@@ -85,9 +100,9 @@ def detect_stop_sign(frame):
             if model.names[class_id] == "stop sign" and confidence > max_confidence:
                 x1, y1, x2, y2 = map(int, result.xyxy[0].tolist())
                 temp_bbox = (x1, y1, x2 - x1, y2 - y1)
-                
-                #CR verification
-                if verify_stop_text(frame, temp_bbox):
+                type_text = verify_stop_text(frame, temp_bbox)
+                if type_text:
+                    sign_type = type_text
                     bbox = temp_bbox
                     detected = True
                     max_confidence = confidence
@@ -96,6 +111,7 @@ def detect_stop_sign(frame):
                 elif confidence > 0.6 and bbox is None:
                     bbox = temp_bbox
                     detected = True
+                    sign_type = "UNKNOWN"
                     max_confidence = confidence
     
-    return detected, bbox
+    return detected, bbox, sign_type
